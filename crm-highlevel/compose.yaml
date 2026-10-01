@@ -1,0 +1,9 @@
+services:
+  crm-highlevel:
+    build: .
+    restart: unless-stopped
+    environment:
+      CRM_CTOX_TOKEN: ${CRM_CTOX_TOKEN:?CRM_CTOX_TOKEN is not set}
+      CRM_CTOX_LOCATION_ID: ${CRM_CTOX_LOCATION_ID:?CRM_CTOX_LOCATION_ID is not set}
+    ports:
+      - "127.0.0.1:8811:8811"
