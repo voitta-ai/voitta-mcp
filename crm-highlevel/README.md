@@ -34,6 +34,28 @@ environment works the same.
 
 ## Running
 
+### Docker (default)
+
+Requires Docker with Compose. From `crm-highlevel/`:
+
+```bash
+source ~/.bash_profile_manda && docker compose up -d --build
+```
+
+Compose reads `CRM_CTOX_TOKEN` and `CRM_CTOX_LOCATION_ID` from the shell at
+`up` time and refuses to start if either is missing. The container runs with
+`restart: unless-stopped`, so it comes back after a reboot as long as the
+Docker engine starts at login (Docker Desktop: Settings > General > "Start
+Docker Desktop when you sign in"). Re-run the command after changing the
+token or the code.
+
+The port is published on `127.0.0.1` only, never on other interfaces.
+
+**Token visibility:** the token is stored in the container's configuration,
+so anyone who can run `docker inspect` on this machine can read it.
+
+### Without Docker
+
 Requires Python 3.11+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
@@ -44,7 +66,9 @@ source ~/.bash_profile_manda   # exports CRM_CTOX_TOKEN, CRM_CTOX_LOCATION_ID
 .venv/bin/crm-highlevel
 ```
 
-The server speaks MCP over streamable HTTP at:
+### Endpoint
+
+Either way, the server speaks MCP over streamable HTTP at:
 
 ```
 http://127.0.0.1:8811/mcp
