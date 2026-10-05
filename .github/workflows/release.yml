@@ -1,0 +1,93 @@
+name: release
+
+# Tag-on-bump, per server. Feature PRs leave versions alone; cutting a release
+# is its own commit that moves a server's pyproject.toml version. On push to
+# master, every server whose version has no "<server>-v<version>" tag gets its
+# image pushed to GHCR (:<version> and :latest), then the tag and a GitHub
+# release are created.
+on:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      pending: ${{ steps.list.outputs.pending }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: list
+        run: |
+          set -euo pipefail
+          pending="[]"
+          for d in */; do
+            d=${d%/}
+            [ -f "$d/pyproject.toml" ] && [ -f "$d/Dockerfile" ] || continue
+            version=$(grep -m1 '^version' "$d/pyproject.toml" | sed -E 's/version *= *"([^"]+)"/\1/')
+            tag="$d-v$version"
+            if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+              echo "$tag already released"
+            else
+              echo "$tag pending"
+              pending=$(jq -c --arg s "$d" --arg v "$version" '. + [{server: $s, version: $v}]' <<<"$pending")
+            fi
+          done
+          echo "pending=$pending" >> "$GITHUB_OUTPUT"
+
+  release:
+    needs: discover
+    if: needs.discover.outputs.pending != '[]'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.discover.outputs.pending) }}
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}/${{ matrix.server }}
+      TAG: ${{ matrix.server }}-v${{ matrix.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.server }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ matrix.version }}
+            ${{ env.IMAGE }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ matrix.version }}
+      - name: Tag and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SERVER: ${{ matrix.server }}
+        run: |
+          set -euo pipefail
+          # Notes start from this server's previous release, not another server's.
+          prev=$(git tag -l "$SERVER-v*" | sort -V | tail -1 || true)
+          start_args=()
+          [ -n "$prev" ] && start_args=(--notes-start-tag "$prev")
+          gh release create "$TAG" \
+            --title "$TAG" \
+            --target "$GITHUB_SHA" \
+            --generate-notes "${start_args[@]}" \
+            --notes "Image: \`$IMAGE:${{ matrix.version }}\`"
