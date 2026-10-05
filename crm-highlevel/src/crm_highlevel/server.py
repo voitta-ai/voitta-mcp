@@ -17,6 +17,8 @@ USER_AGENT = "curl/8.7.1"
 
 HOST = os.environ.get("CRM_HIGHLEVEL_HOST", "127.0.0.1")
 PORT = int(os.environ.get("CRM_HIGHLEVEL_PORT", "8811"))
+# Web app host used to build links to CRM records (white-label domain or app.gohighlevel.com).
+APP_URL = os.environ.get("CRM_HIGHLEVEL_APP_URL", "https://crm.ctox.com")
 
 mcp = MCPServer("crm-highlevel")
 READ_ONLY = ToolAnnotations(read_only_hint=True)
@@ -54,7 +56,7 @@ def _stage_names() -> dict:
 
 @mcp.tool(annotations=READ_ONLY)
 def crm_find_contact(query: str) -> list[dict]:
-    """Look up accounts in the CRM by company or person name. Returns the current contact record: id, name, company, email and tags."""
+    """Look up accounts in the CRM by company or person name. Returns the current contact record: id, name, company, email, tags and a link to the record in the CRM."""
     data = _get("/contacts/", {"locationId": _location_id(), "query": query, "limit": 20})
     retval = [
         {
@@ -63,6 +65,7 @@ def crm_find_contact(query: str) -> list[dict]:
             "company": c.get("companyName"),
             "email": c.get("email"),
             "tags": c.get("tags", []),
+            "url": f"{APP_URL}/v2/location/{_location_id()}/contacts/detail/{c.get('id')}",
         }
         for c in data.get("contacts", [])
     ]

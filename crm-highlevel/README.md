@@ -12,7 +12,7 @@ All tools are read-only (`readOnlyHint: true`).
 
 | Tool | Arguments | Returns |
 |---|---|---|
-| `crm_find_contact` | `query` (company or person name) | id, name, company, email, tags |
+| `crm_find_contact` | `query` (company or person name) | id, name, company, email, tags, url (link to the record in the CRM web app) |
 | `crm_get_opportunities` | `contact_id` | pipeline, stage, status, monetary value |
 | `crm_get_notes` | `contact_id` | note id, body, date added |
 | `crm_list_pipelines` | none | pipelines and their stage names, in order |
@@ -27,6 +27,7 @@ Read from the environment of the process that runs the server:
 | `CRM_CTOX_LOCATION_ID` | yes | HighLevel location (sub-account) ID |
 | `CRM_HIGHLEVEL_HOST` | no | Bind address, default `127.0.0.1` |
 | `CRM_HIGHLEVEL_PORT` | no | Port, default `8811` |
+| `CRM_HIGHLEVEL_APP_URL` | no | CRM web app base for record links, default `https://crm.ctox.com` (use `https://app.gohighlevel.com` for a non-white-label account) |
 
 The operator keeps `CRM_CTOX_TOKEN` and `CRM_CTOX_LOCATION_ID` in
 `~/.bash_profile_manda`; any other mechanism that puts them in the
