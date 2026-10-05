@@ -1,0 +1,42 @@
+name: checks
+
+# Every server is a top-level directory with a pyproject.toml and a
+# Dockerfile. Each one must compile and its image must build.
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      servers: ${{ steps.list.outputs.servers }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: |
+          servers=$(for d in */; do d=${d%/}; [ -f "$d/pyproject.toml" ] && [ -f "$d/Dockerfile" ] && echo "$d"; done | jq -R . | jq -sc .)
+          echo "servers=$servers" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        server: ${{ fromJson(needs.discover.outputs.servers) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile
+        run: python3 -m compileall -q "${{ matrix.server }}/src"
+      - uses: docker/setup-buildx-action@v3
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.server }}
+          push: false
