@@ -46,6 +46,7 @@ The read tools are marked `readOnlyHint: true`.
 |---|---|---|
 | `crm_find_contact` | `query` (company or person name) | id, name, company, email, tags, url (link to the record in the CRM web app) |
 | `crm_get_opportunities` | `contact_id` | pipeline, stage, status, monetary value |
+| `crm_list_opportunities` | `status` (`open`, `won`, `lost`, `abandoned`), `stage` (name), `limit` (default 10); all optional | deals across the CRM, highest value first: deal, company, contact, pipeline, stage, status, value, url |
 | `crm_get_notes` | `contact_id` | note id, body, date added |
 | `crm_list_pipelines` | none | pipelines and their stage names, in order |
 
