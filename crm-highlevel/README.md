@@ -1,14 +1,19 @@
 # crm-highlevel
 
-Read-only MCP server for a HighLevel (LeadConnector) CRM location. It exposes
-the current state of contacts and deals; it has no tool that can create,
-update or delete anything. Every API call goes through a single GET-only
-helper (`_get` in `src/crm_highlevel/server.py`), so read-only is a property
-of the code, not of configuration.
+MCP server for a HighLevel (LeadConnector) CRM location. It exposes the
+current state of contacts and deals. It is read-only by default: the read
+tools go through a single GET-only helper (`_get` in
+`src/crm_highlevel/server.py`), and no tool can create, update or delete
+anything.
+
+One narrow write tool, `crm_update_opportunity_status`, exists only when
+`CRM_HIGHLEVEL_ENABLE_WRITES=1`. It changes one opportunity's stage and/or
+status and nothing else; there are no delete, contact-edit or generic write
+tools. Clients should treat it as a mutation that needs human approval.
 
 ## Tools
 
-All tools are read-only (`readOnlyHint: true`).
+The read tools are marked `readOnlyHint: true`.
 
 | Tool | Arguments | Returns |
 |---|---|---|
@@ -16,6 +21,13 @@ All tools are read-only (`readOnlyHint: true`).
 | `crm_get_opportunities` | `contact_id` | pipeline, stage, status, monetary value |
 | `crm_get_notes` | `contact_id` | note id, body, date added |
 | `crm_list_pipelines` | none | pipelines and their stage names, in order |
+
+Write tool, registered only with `CRM_HIGHLEVEL_ENABLE_WRITES=1`
+(`readOnlyHint: false`, `destructiveHint: true`):
+
+| Tool | Arguments | Returns |
+|---|---|---|
+| `crm_update_opportunity_status` | `opportunity_id`, `stage` (stage name in the deal's current pipeline) and/or `status` (`open`, `won`, `lost`, `abandoned`) | the updated deal, same shape as `crm_get_opportunities` |
 
 ## Configuration
 
@@ -27,6 +39,7 @@ Read from the environment of the process that runs the server:
 | `CRM_CTOX_LOCATION_ID` | yes | HighLevel location (sub-account) ID |
 | `CRM_HIGHLEVEL_HOST` | no | Bind address, default `127.0.0.1` |
 | `CRM_HIGHLEVEL_PORT` | no | Port, default `8811` |
+| `CRM_HIGHLEVEL_ENABLE_WRITES` | no | `1` registers `crm_update_opportunity_status`; anything else (default) keeps the server read-only |
 | `CRM_HIGHLEVEL_APP_URL` | no | CRM web app base for record links, default `https://crm.ctox.com` (use `https://app.gohighlevel.com` for a non-white-label account) |
 
 The operator keeps `CRM_CTOX_TOKEN` and `CRM_CTOX_LOCATION_ID` in
@@ -41,6 +54,12 @@ Requires Docker with Compose. From `crm-highlevel/`:
 
 ```bash
 source ~/.bash_profile_manda && docker compose up -d --build
+```
+
+To run with the write tool enabled:
+
+```bash
+source ~/.bash_profile_manda && CRM_HIGHLEVEL_ENABLE_WRITES=1 docker compose up -d --build
 ```
 
 Compose reads `CRM_CTOX_TOKEN` and `CRM_CTOX_LOCATION_ID` from the shell at
