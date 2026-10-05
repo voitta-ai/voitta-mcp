@@ -11,6 +11,33 @@ One narrow write tool, `crm_update_opportunity_status`, exists only when
 status and nothing else; there are no delete, contact-edit or generic write
 tools. Clients should treat it as a mutation that needs human approval.
 
+## Which CRM this is
+
+HighLevel (also sold as GoHighLevel; its API is branded LeadConnector) is a
+CRM that agencies resell under their own name and domain. A white-label
+instance is still HighLevel underneath: the same API, tokens and location
+IDs. This server talks only to HighLevel's public API, so it works with any
+HighLevel account, white-labeled or not. `CRM_HIGHLEVEL_APP_URL` sets the
+web-app host used for record links.
+
+## Why not HighLevel's official MCP server
+
+HighLevel runs an official MCP server, the LeadConnector MCP server at
+`https://services.leadconnectorhq.com/mcp/`. It takes the same Private
+Integration Token and location ID and covers hundreds of operations across
+contacts, conversations, calendars, opportunities, payments and more. It
+reaches them through a few generic tools (`search`, `fetch`,
+`search_operations`, `describe_operation`, `execute_operation`), and
+`execute_operation` runs any operation, writes included.
+
+This server exists because of that design. An MCP client that gates
+mutations behind human approval classifies tools by name. Behind a generic
+`execute_operation` tool, a read and a write look the same, so the client
+must either approve every call or none. Here every tool is either a read
+(`readOnlyHint: true`, through the GET-only helper) or one named, narrow
+write that a client can mark as a mutation. New capabilities are added as
+new named tools, never as a passthrough.
+
 ## Tools
 
 The read tools are marked `readOnlyHint: true`.
@@ -103,3 +130,9 @@ http://127.0.0.1:8811/mcp
   "Invalid Private Integration token".
 - Opportunity search takes `location_id` and `contact_id` (snake case); the
   contacts and pipelines endpoints take `locationId`.
+- Opportunity search filters by `status` but cannot sort: `order` is
+  silently ignored and `sortBy` returns 422. Ranking (for example top deals
+  by value) has to page through the results (at most 100 per page) and sort
+  them in the server.
+- Updating an opportunity is `PUT /opportunities/{id}` with `pipelineStageId`
+  and/or `status`; it returns 200 and the opportunity.

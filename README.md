@@ -6,7 +6,7 @@ start it.
 
 | Server | Description |
 |---|---|
-| [`crm-highlevel/`](crm-highlevel/README.md) | Read-only HighLevel CRM (contacts, deals, notes, pipelines) |
+| [`crm-highlevel/`](crm-highlevel/README.md) | HighLevel CRM (contacts, deals, notes, pipelines); read-only by default, one optional approval-gated deal-status write |
 
 ## CI and releases
 
