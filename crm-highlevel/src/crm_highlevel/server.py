@@ -25,6 +25,7 @@ PORT = int(os.environ.get("CRM_HIGHLEVEL_PORT", "8811"))
 APP_URL = os.environ.get("CRM_HIGHLEVEL_APP_URL", "https://crm.ctox.com")
 WRITES_ENABLED = os.environ.get("CRM_HIGHLEVEL_ENABLE_WRITES") == "1"
 OPPORTUNITY_STATUSES = ("open", "won", "lost", "abandoned")
+PAGE_SIZE = 100
 
 mcp = MCPServer("crm-highlevel")
 READ_ONLY = ToolAnnotations(read_only_hint=True)
@@ -52,6 +53,11 @@ def _get(path: str, params: dict | None = None) -> dict:
         # Body only; the request (and its Authorization header) is never surfaced.
         raise RuntimeError(f"HighLevel GET {path} failed: {response.status_code} {response.text[:300]}")
     retval = response.json()
+    return retval
+
+
+def _contact_url(contact_id: str | None) -> str:
+    retval = f"{APP_URL}/v2/location/{_location_id()}/contacts/detail/{contact_id}"
     return retval
 
 
@@ -96,7 +102,7 @@ def crm_find_contact(query: str) -> list[dict]:
             "company": c.get("companyName"),
             "email": c.get("email"),
             "tags": c.get("tags", []),
-            "url": f"{APP_URL}/v2/location/{_location_id()}/contacts/detail/{c.get('id')}",
+            "url": _contact_url(c.get("id")),
         }
         for c in data.get("contacts", [])
     ]
@@ -109,6 +115,38 @@ def crm_get_opportunities(contact_id: str) -> list[dict]:
     data = _get("/opportunities/search", {"location_id": _location_id(), "contact_id": contact_id})
     stages = _stage_names()
     retval = [_opportunity_view(o, stages) for o in data.get("opportunities", [])]
+    return retval
+
+
+@mcp.tool(annotations=READ_ONLY)
+def crm_list_opportunities(status: str | None = None, stage: str | None = None, limit: int = 10) -> list[dict]:
+    """Current deals across the whole CRM, highest monetary value first. Filter by status (open, won, lost, abandoned; "won" deals are customers) and/or stage name. Each row has the deal, company, contact, pipeline, stage, status, value and a link to the contact record in the CRM."""
+    if status is not None and status not in OPPORTUNITY_STATUSES:
+        raise ToolError(f"status must be one of {', '.join(OPPORTUNITY_STATUSES)}")
+    params = {"location_id": _location_id(), "limit": PAGE_SIZE}
+    if status is not None:
+        params["status"] = status
+    # HighLevel's search cannot sort, so fetch every page and rank here.
+    deals = []
+    page = 1
+    while page:
+        data = _get("/opportunities/search", {**params, "page": page})
+        deals.extend(data.get("opportunities", []))
+        page = data.get("meta", {}).get("nextPage") or None
+    stages = _stage_names()
+    if stage is not None:
+        deals = [o for o in deals if (stages.get(o.get("pipelineStageId"), (None, ""))[1] or "").lower() == stage.lower()]
+    # Highest value first; ties break by deal name so the order is stable.
+    deals.sort(key=lambda o: (-(o.get("monetaryValue") or 0), o.get("name") or ""))
+    retval = [
+        {
+            **_opportunity_view(o, stages),
+            "company": (o.get("contact") or {}).get("companyName"),
+            "contact": (o.get("contact") or {}).get("name"),
+            "url": _contact_url((o.get("contact") or {}).get("id")),
+        }
+        for o in deals[: max(1, limit)]
+    ]
     return retval
 
 
